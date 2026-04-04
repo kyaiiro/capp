@@ -1,4 +1,0 @@
-flet
-psycopg[binary]
-dotenv
-bcrypt
