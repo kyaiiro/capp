@@ -17,6 +17,9 @@ if not pathlib.Path("profile.json").is_file():
     subprocess.getoutput(f"touch profile.json")
     json.dump(base, open("profile.json", "w"), indent=4)
 
+if not pathlib.Path("pfps").is_dir():
+    subprocess.getoutput("mkdir pfps")
+
 async def main(page: ft.Page):
     page.title = "Chat app"
     page.expand = True
