@@ -37,7 +37,8 @@ async def main(page: ft.Page):
         margin=15
     )
 
-    def show_users():
+    async def show_users():
+        users = await db.get_all_users_json(db.conn)
         friends.controls.clear()
         for user_data in users.values():  # users is now a dict of dicts
             if user_data["id"] != 0:
@@ -52,21 +53,42 @@ async def main(page: ft.Page):
                         spacing=15
                     )
                 )
-    show_users()
+    await show_users()
 
 
     user_field = ft.TextField(hint_text="Username")
     pass_field = ft.TextField(hint_text="Password")
+    pfp_path = ft.Text("No file selected")
+    def pick_file_kde(e):
+        try:
+            # Calls the native KDE file picker
+            result = subprocess.run(
+                ["kdialog", "--getopenfilename", "/home", "All Files (*)"],
+                capture_output=True, text=True
+            )
+            file_path = result.stdout.strip()
+            
+            if file_path:
+                pfp_path.value = file_path
+            page.update()
+        except Exception as ex:
+            pfp_path.value = f"Error: {ex}"
+            page.update()
+
+        create_profile_dialog.content.controls.append(ft.Image(src=pfp_path.value))
+
+        return pfp_path
     
     async def create_profile(e):
         user = user_field.value
         password = pass_field.value
-        
+        pfp = pfp_path.value
+
         if not user:
             print("Username is required")
             return
             
-        with open("temp1.png", "rb") as img_file:
+        with open(pfp, "rb") as img_file:
             b64_string = base64.b64encode(img_file.read()).decode('utf-8')
         uid = await db.create_new_user(user, password, b64_string)
         
@@ -76,9 +98,9 @@ async def main(page: ft.Page):
             "password": password
         }
         json.dump(user_ex, open("profile.json", "w"), indent=4)
-        show_users()
         page.pop_dialog()
         page.pop_dialog()
+        await show_users()
         await msg_hist()
         page.update()
 
@@ -123,7 +145,8 @@ async def main(page: ft.Page):
         content=ft.Column(
             controls=[
                 user_field,
-                pass_field
+                pass_field,
+                ft.ElevatedButton("Pick PFP", on_click=pick_file_kde)
             ],
             expand=False
         ),
