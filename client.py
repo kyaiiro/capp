@@ -99,6 +99,7 @@ async def main(page: ft.Page):
                 page.update()
 
     login_dialog = ft.AlertDialog(
+        modal=True,
         title="Welcome!",
         content=ft.Column(
             controls=[
@@ -113,6 +114,7 @@ async def main(page: ft.Page):
     )
 
     create_profile_dialog = ft.AlertDialog(
+        modal=True,
         title="Welcome!",
         content=ft.Column(
             controls=[
@@ -133,6 +135,7 @@ async def main(page: ft.Page):
         page.show_dialog(create_profile_dialog)
     
     first_start = ft.AlertDialog(
+        modal=True,
         title="Welcome!",
         content=ft.Column(
             controls=[
