@@ -1,4 +1,4 @@
-import flet as ft, asyncio, json, base64, pathlib, subprocess
+import flet as ft, asyncio, json, base64, pathlib, subprocess, zlib
 from dbStuff import dbAccess
 
 def get_db(active_db):
@@ -29,17 +29,61 @@ async def main(page: ft.Page):
 
     db = get_db("2")
 
-    users = await db.get_all_users_json(db.conn)
-
     friends = ft.Column(
-        controls=[ft.Text("Users:")],
+        controls=[],
         scroll=ft.ScrollMode.AUTO,
         margin=15
     )
 
+    pfp_path = ft.Text("No file selected")
+    user = ft.TextField(hint_text="New Username")
+    async def save_settings(e):
+        uid = json.load(open("profile.json", "r"))["uid"]
+        username, pfp = user.value, pfp_path.value
+        with open(pfp, "rb") as img_file:
+            b64_string = base64.b64encode(img_file.read()).decode('utf-8')
+        await db.updProfile(db.conn, uid, username, b64_string)
+        subprocess.getoutput(f"rm pfps/{uid}.png")
+        page.pop_dialog()
+        await show_users()
+        page.update()
+
+    def open_settings():
+        def pick_file_kde(e):
+            try:
+                # Calls the native KDE file picker
+                result = subprocess.run(
+                    ["kdialog", "--getopenfilename", "/home", "All Files (*)"],
+                    capture_output=True, text=True
+                )
+                file_path = result.stdout.strip()
+                
+                if file_path:
+                    pfp_path.value = file_path
+                page.update()
+            except Exception as ex:
+                pfp_path.value = f"Error: {ex}"
+                page.update()
+
+            settings.content.controls.append(ft.Image(src=pfp_path.value))
+        settings = ft.AlertDialog(
+            title="Settings",
+            content=ft.Column(
+                controls=[
+                    user,
+                    # ft.TextField(hint_text="New Password"),
+                    ft.FilledButton(content="Pick PFP", on_click=pick_file_kde)
+                ]
+            ),
+            actions=ft.TextButton(content="Save", on_click=save_settings)
+
+        )
+        page.show_dialog(settings)
+
     async def show_users():
         users = await db.get_all_users_json(db.conn)
         friends.controls.clear()
+        friends.controls.append(ft.Text("Users:"))
         for user_data in users.values():  # users is now a dict of dicts
             if user_data["id"] != 0:
                 pfp = base64.b64decode(user_data.get("pfp"))
@@ -53,6 +97,7 @@ async def main(page: ft.Page):
                         spacing=15
                     )
                 )
+        friends.controls.append(ft.IconButton(icon=ft.Icons.SETTINGS, on_click=open_settings))
     await show_users()
 
 
@@ -76,8 +121,6 @@ async def main(page: ft.Page):
             page.update()
 
         create_profile_dialog.content.controls.append(ft.Image(src=pfp_path.value))
-
-        return pfp_path
     
     async def create_profile(e):
         user = user_field.value
@@ -146,7 +189,7 @@ async def main(page: ft.Page):
             controls=[
                 user_field,
                 pass_field,
-                ft.ElevatedButton("Pick PFP", on_click=pick_file_kde)
+                ft.FilledButton(content="Pick PFP", on_click=pick_file_kde)
             ],
             expand=False
         ),
@@ -187,6 +230,7 @@ async def main(page: ft.Page):
             await text_msg.focus()
 
     async def add_message_to_display(message, uid, is_own=False):
+        users = await db.get_all_users_json(db.conn)
         for user in users.values():
             if user["id"] == uid:
                 if pathlib.Path(f"pfps/{uid}.png").is_file():
@@ -258,7 +302,7 @@ async def main(page: ft.Page):
 
     main_content = ft.Row(
         controls=[
-            ft.Container(content=friends, bgcolor=ft.Colors.GREY_900, width=400, border_radius=5),
+            ft.Container(content=friends , bgcolor=ft.Colors.GREY_900, width=400, border_radius=5),
             ft.Container(content=message_content, bgcolor=ft.Colors.GREY_800, expand=True, border_radius=5)
             ],
             expand=True

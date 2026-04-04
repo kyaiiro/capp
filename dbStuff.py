@@ -119,7 +119,25 @@ class dbAccess():
                 return result['count']
     
     import asyncio
-import psycopg
+
+    async def updProfile(self, conn_string, user_id, new_username=None, pfp_binary=None):
+        if new_username == "":
+            new_username = None
+        if pfp_binary == b"" or pfp_binary == "":
+            pfp_binary = None
+
+        async with await psycopg.AsyncConnection.connect(conn_string, autocommit=True) as conn:
+            async with conn.cursor() as cur:
+                await cur.execute(
+                    """
+                    UPDATE users 
+                    SET username = COALESCE(%s, username),
+                        pfp = COALESCE(%s, pfp)
+                    WHERE id = %s
+                    """,
+                    (new_username, pfp_binary, user_id)
+                )
+                print(f"Profile check complete for User {user_id}")
 
 async def check_server_status(main_dsn, backup_dsn):
     try:
@@ -131,5 +149,3 @@ async def check_server_status(main_dsn, backup_dsn):
                 return 2
         except Exception:
             return "noServer"
-
-#def
