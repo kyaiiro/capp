@@ -131,7 +131,7 @@ async def main(page: ft.Page):
             print("Username is required")
             return
             
-        with open(pfp, "rb") as img_file:
+        with open(pfp if pfp != "No file selected" else "temp.png", "rb") as img_file:
             b64_string = base64.b64encode(img_file.read()).decode('utf-8')
         uid = await db.create_new_user(user, password, b64_string)
         
