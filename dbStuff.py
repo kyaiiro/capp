@@ -95,7 +95,7 @@ class dbAccess():
             async with conn.cursor() as cur:
                 # We join with users to get the name, and sort by ID/Time descending
                 await cur.execute("""
-                    SELECT u.username, m.content, m.created_at 
+                    SELECT u.username, m.content, m.created_at, u.id
                     FROM messages m
                     JOIN users u ON m.user_id = u.id
                     ORDER BY m.id DESC 
@@ -117,3 +117,19 @@ class dbAccess():
                 await cur.execute("SELECT COUNT(*) FROM messages")
                 result = await cur.fetchone()
                 return result['count']
+    
+    import asyncio
+import psycopg
+
+async def check_server_status(main_dsn, backup_dsn):
+    try:
+        async with await psycopg.AsyncConnection.connect(main_dsn, timeout=4) as conn:
+            return 1
+    except Exception:
+        try:
+            async with await psycopg.AsyncConnection.connect(backup_dsn, timeout=4) as conn:
+                return 2
+        except Exception:
+            return "noServer"
+
+#def

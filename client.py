@@ -6,7 +6,6 @@ def get_db(active_db):
         file = json.load(file)
         dbPass = file[active_db].get("DB_PASS")
         dbIP = file[active_db].get("DB_IP")
-        print(dbPass, dbIP)
     return dbAccess(dbPass, dbIP)
 
 base = {
@@ -147,13 +146,22 @@ async def main(page: ft.Page):
         if text_msg.value and text_msg.value.strip():
             msg = text_msg.value
             text_msg.value = ""
-            await add_message_to_display(f"You: {msg}", is_own=True)
+            await add_message_to_display(f"You: {msg}", int(id), is_own=True)
             page.update()  # Clear the text field immediately
             db.write_message(id, msg)
             await text_msg.focus()
 
-    async def add_message_to_display(message, is_own=False):
-        # Create message bubble (no alignment here)
+    async def add_message_to_display(message, uid, is_own=False):
+        print(uid)
+        for user in users.values():
+            if user["id"] == uid:
+                if pathlib.Path(f"pfps/{uid}.png").is_file():
+                    pfp = open(f"pfps/{uid}.png", "rb").read()
+                else:
+                    pfp = base64.b64decode(user["pfp"])
+                    open(f"pfps/{uid}.png", "wb").write(pfp)
+
+        size = 40
         message_bubble = ft.Container(
             content=ft.Text(message, color=ft.Colors.WHITE, overflow=ft.TextOverflow.CLIP),
             bgcolor=ft.Colors.BLUE_400 if is_own else ft.Colors.GREEN_400,
@@ -164,7 +172,11 @@ async def main(page: ft.Page):
         
         # Wrap in a Row to control positioning
         message_row = ft.Row(
-            controls=[message_bubble],
+            controls=[
+                ft.Image(src=pfp, width=size, height=size, border_radius=size/2),
+                message_bubble
+                ],
+                spacing=1,
             alignment=ft.MainAxisAlignment.END if is_own else ft.MainAxisAlignment.START,
         )
         
@@ -222,7 +234,7 @@ async def main(page: ft.Page):
         msg = await db.getMsg(db.conn, msg_count if msg_count <= 30 else 30)
         for item in reversed(msg):
             message = f"{item["username"]}: {item["content"]}"
-            await add_message_to_display(message, is_own=True if item["username"] == json.load(open("profile.json"))["username"] else False)
+            await add_message_to_display(message, int(item["id"]), is_own=True if item["username"] == json.load(open("profile.json"))["username"] else False)
             page.update()
             await db.lowerFlag(db.conn, json.load(open("profile.json", "r"))["uid"])
 
@@ -233,7 +245,7 @@ async def main(page: ft.Page):
         msg = await db.getMsg(db.conn, unread_count)
         for item in reversed(msg):
             message = f"{item["username"]}: {item["content"]}"
-            await add_message_to_display(message, is_own=False)
+            await add_message_to_display(message, int(item["id"]), is_own=False)
             page.update()
             await db.lowerFlag(db.conn, json.load(open("profile.json", "r"))["uid"])
 
