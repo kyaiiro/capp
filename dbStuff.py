@@ -117,8 +117,6 @@ class dbAccess():
                 await cur.execute("SELECT COUNT(*) FROM messages")
                 result = await cur.fetchone()
                 return result['count']
-    
-    import asyncio
 
     async def updProfile(self, conn_string, user_id, new_username=None, pfp_binary=None):
         if new_username == "":

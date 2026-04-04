@@ -123,6 +123,7 @@ async def main(page: ft.Page):
         create_profile_dialog.content.controls.append(ft.Image(src=pfp_path.value))
     
     async def create_profile(e):
+        global logged_in
         user = user_field.value
         password = pass_field.value
         pfp = pfp_path.value
@@ -141,6 +142,7 @@ async def main(page: ft.Page):
             "password": password
         }
         json.dump(user_ex, open("profile.json", "w"), indent=4)
+        logged_in = True
         page.pop_dialog()
         page.pop_dialog()
         await show_users()
@@ -148,6 +150,7 @@ async def main(page: ft.Page):
         page.update()
 
     async def login():
+        global logged_in
         response = (await db.login(db.conn, user_field.value, pass_field.value)).split(" ")
         match response[0]:
             case "no":
@@ -161,6 +164,7 @@ async def main(page: ft.Page):
                     "username": user
                 }
                 json.dump(user_ex, open("profile.json", "w"), indent=4)
+                logged_in = True
                 page.pop_dialog()
                 page.pop_dialog()
                 show_users()
@@ -323,13 +327,14 @@ async def main(page: ft.Page):
         await msg_hist()
 
     while await db.detFlag(db.conn, json.load(open("profile.json", "r"))["uid"]):
-        unread_count = await db.getUnread(db.conn, json.load(open("profile.json", "r"))["uid"])
-        msg = await db.getMsg(db.conn, unread_count)
-        for item in reversed(msg):
-            message = f"{item["username"]}: {item["content"]}"
-            await add_message_to_display(message, int(item["id"]), is_own=False)
-            page.update()
-            await db.lowerFlag(db.conn, json.load(open("profile.json", "r"))["uid"])
+        if logged_in:
+            unread_count = await db.getUnread(db.conn, json.load(open("profile.json", "r"))["uid"])
+            msg = await db.getMsg(db.conn, unread_count)
+            for item in reversed(msg):
+                message = f"{item["username"]}: {item["content"]}"
+                await add_message_to_display(message, int(item["id"]), is_own=False)
+                page.update()
+                await db.lowerFlag(db.conn, json.load(open("profile.json", "r"))["uid"])
 
 # Run the app
 ft.run(main)
