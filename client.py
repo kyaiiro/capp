@@ -25,6 +25,8 @@ async def main(page: ft.Page):
     page.expand = True
     page.theme_mode = ft.ThemeMode.DARK
 
+    logged_in = False
+
     db = get_db("2")
 
     users = await db.get_all_users_json(db.conn)
@@ -77,6 +79,7 @@ async def main(page: ft.Page):
         show_users()
         page.pop_dialog()
         page.pop_dialog()
+        await msg_hist()
         page.update()
 
     async def login():
@@ -96,6 +99,7 @@ async def main(page: ft.Page):
                 page.pop_dialog()
                 page.pop_dialog()
                 show_users()
+                await msg_hist()
                 page.update()
 
     login_dialog = ft.AlertDialog(
@@ -147,6 +151,8 @@ async def main(page: ft.Page):
 
     if json.load(open("profile.json", "r"))["uid"] == 0:
         page.show_dialog(first_start)
+    else:
+        logged_in = True
 
     async def sendMessage(e, id):
         if text_msg.value and text_msg.value.strip():
@@ -158,7 +164,6 @@ async def main(page: ft.Page):
             await text_msg.focus()
 
     async def add_message_to_display(message, uid, is_own=False):
-        print(uid)
         for user in users.values():
             if user["id"] == uid:
                 if pathlib.Path(f"pfps/{uid}.png").is_file():
@@ -247,7 +252,8 @@ async def main(page: ft.Page):
             page.update()
             await db.lowerFlag(db.conn, json.load(open("profile.json", "r"))["uid"])
 
-    await msg_hist()
+    if logged_in:
+        await msg_hist()
 
     while await db.detFlag(db.conn, json.load(open("profile.json", "r"))["uid"]):
         unread_count = await db.getUnread(db.conn, json.load(open("profile.json", "r"))["uid"])
