@@ -178,6 +178,9 @@ async def main(page: ft.Page):
             controls=[
                 ft.Image(src=pfp, width=size, height=size, border_radius=size/2),
                 message_bubble
+                ] if not is_own else [
+                message_bubble,
+                ft.Image(src=pfp, width=size, height=size, border_radius=size/2)
                 ],
                 spacing=1,
             alignment=ft.MainAxisAlignment.END if is_own else ft.MainAxisAlignment.START,
