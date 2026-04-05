@@ -324,8 +324,7 @@ async def main(page: ft.Page):
         
         for item in reversed(msg):
             message = f"{item['username']}: {item['content']}"
-            # Simplified the check for readability
-            is_me = item["username"] == json.load(open("profile.json"))["username"]
+            is_me = item["id"] == json.load(open("profile.json"))["uid"]
             await add_message_to_display(message, int(item["id"]), is_own=is_me)
             page.update()
         
@@ -341,7 +340,8 @@ async def main(page: ft.Page):
             msg = await db.getMsg(db.conn, unread_count)
             for item in reversed(msg):
                 message = f"{item["username"]}: {item["content"]}"
-                await add_message_to_display(message, int(item["id"]), is_own=False)
+                if item["id"] != json.load(open("profile.json"))["uid"]:
+                    await add_message_to_display(message, int(item["id"]), is_own=False)
                 page.update()
                 await db.lowerFlag(db.conn, json.load(open("profile.json", "r"))["uid"])
 
