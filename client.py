@@ -27,7 +27,7 @@ async def main(page: ft.Page):
 
     logged_in = False
 
-    db = get_db("2")
+    db = get_db("1")
 
     friends = ft.Column(
         controls=[],
@@ -340,8 +340,8 @@ async def main(page: ft.Page):
             msg = await db.getMsg(db.conn, unread_count)
             for item in reversed(msg):
                 message = f"{item["username"]}: {item["content"]}"
-                if item["id"] != json.load(open("profile.json"))["uid"]:
-                    await add_message_to_display(message, int(item["id"]), is_own=False)
+                # if item["id"] != json.load(open("profile.json"))["uid"]:
+                await add_message_to_display(message, int(item["id"]), is_own=False)
                 page.update()
                 await db.lowerFlag(db.conn, json.load(open("profile.json", "r"))["uid"])
 
