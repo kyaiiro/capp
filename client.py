@@ -86,7 +86,11 @@ async def main(page: ft.Page):
         friends.controls.append(ft.Text("Users:"))
         for user_data in users.values():  # users is now a dict of dicts
             if user_data["id"] != 0:
-                pfp = base64.b64decode(user_data.get("pfp"))
+                if pathlib.Path(f"pfps/{user_data["id"]}.png").is_file():
+                    pfp = open(f"pfps/{user_data["id"]}.png", "rb").read()
+                else:
+                    pfp = base64.b64decode(user_data["pfp"])
+                    open(f"pfps/{user_data["id"]}.png", "wb").write(pfp)
                 size = 40
                 friends.controls.append(
                     ft.Row(
