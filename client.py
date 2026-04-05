@@ -321,11 +321,16 @@ async def main(page: ft.Page):
     async def msg_hist():
         msg_count = await db.msgCount(db.conn)
         msg = await db.getMsg(db.conn, msg_count if msg_count <= 30 else 30)
+        
         for item in reversed(msg):
-            message = f"{item["username"]}: {item["content"]}"
-            await add_message_to_display(message, int(item["id"]), is_own=True if item["username"] == json.load(open("profile.json"))["username"] else False)
+            message = f"{item['username']}: {item['content']}"
+            # Simplified the check for readability
+            is_me = item["username"] == json.load(open("profile.json"))["username"]
+            await add_message_to_display(message, int(item["id"]), is_own=is_me)
             page.update()
-            await db.lowerFlag(db.conn, json.load(open("profile.json", "r"))["uid"])
+        
+        uid = json.load(open("profile.json", "r"))["uid"]
+        await db.lowerFlag(db.conn, uid)
 
     if logged_in:
         await msg_hist()
