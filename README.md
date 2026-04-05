@@ -7,7 +7,7 @@ sh setup
 ```
 
 ```
-#TODO Sync servers
+#TODO Sync servers //done
 #TODO Load more when scrolling up
 #TODO Image sharing
 #TODO Password storing and validation on startup
