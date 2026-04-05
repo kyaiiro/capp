@@ -232,10 +232,11 @@ async def main(page: ft.Page):
         if text_msg.value and text_msg.value.strip():
             msg = text_msg.value
             text_msg.value = ""
-            await add_message_to_display(f"You: {msg}", int(id), is_own=True)
-            page.update()  # Clear the text field immediately
-            db.write_message(id, msg)
             await text_msg.focus()
+            page.update()
+            await add_message_to_display(f"You: {msg}", int(id), is_own=True)
+            page.update()
+            db.write_message(id, msg)
 
     async def add_message_to_display(message, uid, is_own=False):
         users = await db.get_all_users_json(db.conn)
@@ -268,7 +269,6 @@ async def main(page: ft.Page):
                 spacing=1,
             alignment=ft.MainAxisAlignment.END if is_own else ft.MainAxisAlignment.START,
         )
-        
         message_display.controls.append(message_row)
 
     text_msg = ft.TextField(
@@ -342,8 +342,8 @@ async def main(page: ft.Page):
                 message = f"{item["username"]}: {item["content"]}"
                 if item["id"] != json.load(open("profile.json"))["uid"]:
                     await add_message_to_display(message, int(item["id"]), is_own=False)
-                page.update()
                 await db.lowerFlag(db.conn, json.load(open("profile.json", "r"))["uid"])
+                page.update()
 
 # Run the app
 ft.run(main)
