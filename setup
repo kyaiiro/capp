@@ -8,5 +8,5 @@ echo """#!/bin/bash
 cd ~/capp
 source env/bin/activate
 python client.py""" >> capp
-mv capp /usr/local/bin
-chmod +x /usr/local/bin/capp
+sudo mv capp /usr/local/bin
+sudo chmod +x /usr/local/bin/capp

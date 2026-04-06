@@ -7,7 +7,7 @@ sh setup
 ```
 
 ```
-#TODO Load more when scrolling up
 #TODO Image sharing
 #TODO Validation of password on startup
+#TODO Load more when scrolling up
 ```
