@@ -19,6 +19,8 @@ if not pathlib.Path("profile.json").is_file():
 
 if not pathlib.Path("pfps").is_dir():
     subprocess.getoutput("mkdir pfps")
+else:
+    subprocess.getoutput("rm pfps/*")
 
 async def main(page: ft.Page):
     page.title = "Chat app"
@@ -149,7 +151,7 @@ async def main(page: ft.Page):
         uid = await db.create_new_user(user, password, b64_string)
         
         user_ex = {
-            "uid": uid,
+            "uid": int(uid),
             "username": user,
             "password": password,
             "remember": remember
@@ -175,7 +177,7 @@ async def main(page: ft.Page):
                 password = pass_field.value
                     
                 user_ex = {
-                    "uid": response[1],
+                    "uid": int(response[1]),
                     "username": user,
                     "password": password,
                     "remember": remember
