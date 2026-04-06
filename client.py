@@ -48,6 +48,11 @@ async def main(page: ft.Page):
         await show_users()
         page.update()
 
+    def logout(e):
+        page.pop_dialog()
+        message_display.controls.clear()
+        page.show_dialog(login_dialog)
+
     def open_settings():
         def pick_file_kde(e):
             try:
@@ -72,7 +77,8 @@ async def main(page: ft.Page):
                 controls=[
                     user,
                     # ft.TextField(hint_text="New Password"),
-                    ft.FilledButton(content="Pick PFP", on_click=pick_file_kde)
+                    ft.FilledButton(content="Pick PFP", on_click=pick_file_kde),
+                    ft.IconButton(icon=ft.Icons.LOGOUT, on_click=logout)
                 ]
             ),
             actions=ft.TextButton(content="Save", on_click=save_settings)
@@ -108,6 +114,7 @@ async def main(page: ft.Page):
     user_field = ft.TextField(hint_text="Username")
     pass_field = ft.TextField(hint_text="Password")
     pfp_path = ft.Text("No file selected")
+    remember_me = ft.Switch(label="Remember me")
     def pick_file_kde(e):
         try:
             # Calls the native KDE file picker
@@ -131,6 +138,7 @@ async def main(page: ft.Page):
         user = user_field.value
         password = pass_field.value
         pfp = pfp_path.value
+        remember = "yes" if remember_me.value else "no"
 
         if not user:
             print("Username is required")
@@ -143,7 +151,8 @@ async def main(page: ft.Page):
         user_ex = {
             "uid": uid,
             "username": user,
-            "password": password
+            "password": password,
+            "remember": remember
         }
         json.dump(user_ex, open("profile.json", "w"), indent=4)
         logged_in = True
@@ -156,25 +165,36 @@ async def main(page: ft.Page):
     async def login():
         global logged_in
         response = (await db.login(db.conn, user_field.value, pass_field.value)).split(" ")
+        remember = "yes" if remember_me.value else "no"
         match response[0]:
             case "no":
-                print("Incorrect")
+                error.value = "Incorrect login details"
+                page.update()
             case "yes":
                 user = user_field.value
                 password = pass_field.value
                     
                 user_ex = {
                     "uid": response[1],
-                    "username": user
+                    "username": user,
+                    "password": password,
+                    "remember": remember
                 }
                 json.dump(user_ex, open("profile.json", "w"), indent=4)
                 logged_in = True
                 page.pop_dialog()
                 page.pop_dialog()
-                show_users()
+                await show_users()
                 await msg_hist()
                 page.update()
 
+    def show_login():
+        page.show_dialog(login_dialog)
+
+    def show_create():
+        page.show_dialog(create_profile_dialog)
+
+    error = ft.Text(value="", color=ft.Colors.RED)
     login_dialog = ft.AlertDialog(
         modal=True,
         title="Welcome!",
@@ -182,11 +202,13 @@ async def main(page: ft.Page):
             controls=[
                 user_field,
                 pass_field,
-                ft.Text(value="")
+                remember_me,
+                error
             ]
         ),
         actions=[
-                ft.TextButton(content="Login", on_click=login)
+            ft.TextButton(content="Create Account", on_click=show_create),
+            ft.TextButton(content="Login", on_click=login)
             ]
     )
 
@@ -197,34 +219,19 @@ async def main(page: ft.Page):
             controls=[
                 user_field,
                 pass_field,
+                remember_me,
                 ft.FilledButton(content="Pick PFP", on_click=pick_file_kde)
             ],
             expand=False
         ),
         actions=[
+            ft.TextButton(content="Login", on_click=show_login),
             ft.TextButton(content="Save", on_click=create_profile)
         ]
     )
 
-    def show_login():
+    if json.load(open("profile.json", "r"))["uid"] == 0 or json.load(open("profile.json", "r"))["remember"] == "no":
         page.show_dialog(login_dialog)
-
-    def show_create():
-        page.show_dialog(create_profile_dialog)
-    
-    first_start = ft.AlertDialog(
-        modal=True,
-        title="Welcome!",
-        content=ft.Column(
-            controls=[
-                ft.FilledButton(content="Login", on_click=show_login),
-                ft.FilledButton(content="Create User", on_click=show_create)
-            ]
-        )
-    )
-
-    if json.load(open("profile.json", "r"))["uid"] == 0:
-        page.show_dialog(first_start)
     else:
         logged_in = True
 
