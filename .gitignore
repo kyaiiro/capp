@@ -1,0 +1,6 @@
+.venv/
+build/
+pfps/
+profile.json
+__pycache__/
+*.pyc

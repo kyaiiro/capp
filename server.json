@@ -1,0 +1,10 @@
+{
+    "1": {
+        "DB_PASS": "Jenu@arduino2008",
+        "DB_IP": "jenuserver.tail2cb1b9.ts.net"
+    },
+    "2": {
+        "DB_PASS": "12345",
+        "DB_IP": "server.raccoon-elevator.ts.net"
+    }
+}
