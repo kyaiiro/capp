@@ -1,4 +1,5 @@
-import flet as ft, asyncio, json, base64, pathlib, subprocess, zlib
+import flet as ft, asyncio, json, base64, pathlib, subprocess
+from datetime import datetime
 from dbStuff import dbAccess
 
 def get_db(active_db):
@@ -58,7 +59,6 @@ async def main(page: ft.Page):
     def open_settings():
         def pick_file_kde(e):
             try:
-                # Calls the native KDE file picker
                 result = subprocess.run(
                     ["kdialog", "--getopenfilename", "/home", "All Files (*)"],
                     capture_output=True, text=True
@@ -78,7 +78,7 @@ async def main(page: ft.Page):
             content=ft.Column(
                 controls=[
                     user,
-                    # ft.TextField(hint_text="New Password"),
+                    #TODO ft.TextField(hint_text="New Password"),
                     ft.FilledButton(content="Pick PFP", on_click=pick_file_kde),
                     ft.IconButton(icon=ft.Icons.LOGOUT, on_click=logout)
                 ]
@@ -92,7 +92,7 @@ async def main(page: ft.Page):
         users = await db.get_all_users_json(db.conn)
         friends.controls.clear()
         friends.controls.append(ft.Text("Users:"))
-        for user_data in users.values():  # users is now a dict of dicts
+        for user_data in users.values():
             if user_data["id"] != 0:
                 if pathlib.Path(f"pfps/{user_data["id"]}.png").is_file():
                     pfp = open(f"pfps/{user_data["id"]}.png", "rb").read()
@@ -119,7 +119,6 @@ async def main(page: ft.Page):
     remember_me = ft.Switch(label="Remember me")
     def pick_file_kde(e):
         try:
-            # Calls the native KDE file picker
             result = subprocess.run(
                 ["kdialog", "--getopenfilename", "/home", "All Files (*)"],
                 capture_output=True, text=True
@@ -243,11 +242,12 @@ async def main(page: ft.Page):
             text_msg.value = ""
             await text_msg.focus()
             page.update()
-            await add_message_to_display(f"You: {msg}", int(id), is_own=True)
+            timestamp = f"{datetime.now().hour-12 if datetime.now().hour > 12 else datetime.now().hour}:{datetime.now().minute} {"AM" if 0 < datetime.now().hour < 12 else "PM"}"
+            await add_message_to_display(f"You: {msg}", int(id), timestamp, is_own=True)
             page.update()
             db.write_message(id, msg)
 
-    async def add_message_to_display(message, uid, is_own=False):
+    async def add_message_to_display(message, uid, timestamp, is_own=False):
         users = await db.get_all_users_json(db.conn)
         for user in users.values():
             if user["id"] == uid:
@@ -257,27 +257,34 @@ async def main(page: ft.Page):
                     pfp = base64.b64decode(user["pfp"])
                     open(f"pfps/{uid}.png", "wb").write(pfp)
 
-        size = 40
+        image_size = 40
+        max_width = (page.width-400)/2
+        estimated_text_width = len(message) * 10
         message_bubble = ft.Container(
-            content=ft.Text(message, color=ft.Colors.WHITE, overflow=ft.TextOverflow.CLIP),
-            bgcolor=ft.Colors.BLUE_400 if is_own else ft.Colors.GREEN_400,
+            content=ft.Column(controls=[
+                ft.Text(message, color=ft.Colors.WHITE, overflow=ft.TextOverflow.CLIP),
+                ft.Text(timestamp, color=ft.Colors.GREY_300, align=ft.Alignment.CENTER_RIGHT)
+            ],
+            alignment=ft.Alignment.CENTER),
+            bgcolor=ft.Colors.BLUE_GREY_900 if is_own else ft.Colors.GREY_900,
             border_radius=10,
             padding=10,
-            margin=ft.Margin.only(bottom=5, right=20, left=20)
+            margin=ft.Margin.only(right=20, left=20),
+            width=min(max_width, estimated_text_width),
+            expand_loose=False
         )
         
-        # Wrap in a Row to control positioning
         message_row = ft.Row(
             controls=[
-                ft.Image(src=pfp, width=size, height=size, border_radius=size/2),
+                ft.Image(src=pfp, width=image_size, height=image_size, border_radius=image_size/2),
                 message_bubble
                 ] if not is_own else [
                 message_bubble,
-                ft.Image(src=pfp, width=size, height=size, border_radius=size/2)
+                ft.Image(src=pfp, width=image_size, height=image_size, border_radius=image_size/2)
                 ],
                 spacing=1,
-            alignment=ft.MainAxisAlignment.END if is_own else ft.MainAxisAlignment.START,
-        )
+                alignment=ft.MainAxisAlignment.END if is_own else ft.MainAxisAlignment.START
+            )
         message_display.controls.append(message_row)
 
     text_msg = ft.TextField(
@@ -302,7 +309,6 @@ async def main(page: ft.Page):
         expand=True,
     )
     
-    # Main message area with messages on top, input at bottom
     message_content = ft.Container(
         content=ft.Column(
             controls=[
@@ -312,15 +318,15 @@ async def main(page: ft.Page):
             spacing=10,
             expand=True,
         ),
-        bgcolor=ft.Colors.GREY_800,
+        bgcolor=ft.Colors.BLACK_26,
         expand=True,
         padding=10,
     )
 
     main_content = ft.Row(
         controls=[
-            ft.Container(content=friends , bgcolor=ft.Colors.GREY_900, width=400, border_radius=5),
-            ft.Container(content=message_content, bgcolor=ft.Colors.GREY_800, expand=True, border_radius=5)
+            ft.Container(content=friends, bgcolor=ft.Colors.BLACK_12, width=400, border_radius=5),
+            ft.Container(content=message_content, expand=True, border_radius=5)
             ],
             expand=True
         )
@@ -334,7 +340,10 @@ async def main(page: ft.Page):
         for item in reversed(msg):
             message = f"{item['username']}: {item['content']}"
             is_me = item["id"] == json.load(open("profile.json"))["uid"]
-            await add_message_to_display(message, int(item["id"]), is_own=is_me)
+            timestamp = item['created_at'].split("T")[1].split(".")[0].split(":")
+            timestamp[0], timestamp[1] = int(timestamp[0]), int(timestamp[1])
+            ts = f"{timestamp[0]-12 if timestamp[0] > 12 else timestamp[0]}:{timestamp[0]} {"AM" if 0 < timestamp[0] < 12 else "PM"}"
+            await add_message_to_display(message, int(item["id"]), ts, is_own=is_me)
             page.update()
         
         uid = json.load(open("profile.json", "r"))["uid"]
@@ -350,9 +359,11 @@ async def main(page: ft.Page):
             for item in reversed(msg):
                 message = f"{item["username"]}: {item["content"]}"
                 if item["id"] != json.load(open("profile.json"))["uid"]:
-                    await add_message_to_display(message, int(item["id"]), is_own=False)
+                    timestamp = item['created_at'].split("T")[1].split(".")[0].split(":")
+                    timestamp[0], timestamp[1] = int(timestamp[0]), int(timestamp[1])
+                    ts = f"{timestamp[0]-12 if timestamp[0] > 12 else timestamp[0]}:{timestamp[0]} {"AM" if 0 < timestamp[0] < 12 else "PM"}"
+                    await add_message_to_display(message, int(item["id"]), ts, is_own=False)
                 await db.lowerFlag(db.conn, json.load(open("profile.json", "r"))["uid"])
                 page.update()
 
-# Run the app
 ft.run(main)
