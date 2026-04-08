@@ -1,4 +1,5 @@
-import flet as ft, asyncio, json, base64, pathlib, subprocess, zlib
+import flet as ft, asyncio, json, base64, pathlib, subprocess
+from datetime import datetime
 from dbStuff import dbAccess
 
 def get_db(active_db):
@@ -19,6 +20,8 @@ if not pathlib.Path("profile.json").is_file():
 
 if not pathlib.Path("pfps").is_dir():
     subprocess.getoutput("mkdir pfps")
+else:
+    subprocess.getoutput("rm pfps/*")
 
 async def main(page: ft.Page):
     page.title = "Chat app"
@@ -48,10 +51,14 @@ async def main(page: ft.Page):
         await show_users()
         page.update()
 
+    def logout(e):
+        page.pop_dialog()
+        message_display.controls.clear()
+        page.show_dialog(login_dialog)
+
     def open_settings():
         def pick_file_kde(e):
             try:
-                # Calls the native KDE file picker
                 result = subprocess.run(
                     ["kdialog", "--getopenfilename", "/home", "All Files (*)"],
                     capture_output=True, text=True
@@ -71,8 +78,9 @@ async def main(page: ft.Page):
             content=ft.Column(
                 controls=[
                     user,
-                    # ft.TextField(hint_text="New Password"),
-                    ft.FilledButton(content="Pick PFP", on_click=pick_file_kde)
+                    #TODO ft.TextField(hint_text="New Password"),
+                    ft.FilledButton(content="Pick PFP", on_click=pick_file_kde),
+                    ft.IconButton(icon=ft.Icons.LOGOUT, on_click=logout)
                 ]
             ),
             actions=ft.TextButton(content="Save", on_click=save_settings)
@@ -84,9 +92,13 @@ async def main(page: ft.Page):
         users = await db.get_all_users_json(db.conn)
         friends.controls.clear()
         friends.controls.append(ft.Text("Users:"))
-        for user_data in users.values():  # users is now a dict of dicts
+        for user_data in users.values():
             if user_data["id"] != 0:
-                pfp = base64.b64decode(user_data.get("pfp"))
+                if pathlib.Path(f"pfps/{user_data["id"]}.png").is_file():
+                    pfp = open(f"pfps/{user_data["id"]}.png", "rb").read()
+                else:
+                    pfp = base64.b64decode(user_data["pfp"])
+                    open(f"pfps/{user_data["id"]}.png", "wb").write(pfp)
                 size = 40
                 friends.controls.append(
                     ft.Row(
@@ -104,9 +116,9 @@ async def main(page: ft.Page):
     user_field = ft.TextField(hint_text="Username")
     pass_field = ft.TextField(hint_text="Password")
     pfp_path = ft.Text("No file selected")
+    remember_me = ft.Switch(label="Remember me")
     def pick_file_kde(e):
         try:
-            # Calls the native KDE file picker
             result = subprocess.run(
                 ["kdialog", "--getopenfilename", "/home", "All Files (*)"],
                 capture_output=True, text=True
@@ -127,6 +139,7 @@ async def main(page: ft.Page):
         user = user_field.value
         password = pass_field.value
         pfp = pfp_path.value
+        remember = "yes" if remember_me.value else "no"
 
         if not user:
             print("Username is required")
@@ -137,9 +150,10 @@ async def main(page: ft.Page):
         uid = await db.create_new_user(user, password, b64_string)
         
         user_ex = {
-            "uid": uid,
+            "uid": int(uid),
             "username": user,
-            "password": password
+            "password": password,
+            "remember": remember
         }
         json.dump(user_ex, open("profile.json", "w"), indent=4)
         logged_in = True
@@ -152,25 +166,36 @@ async def main(page: ft.Page):
     async def login():
         global logged_in
         response = (await db.login(db.conn, user_field.value, pass_field.value)).split(" ")
+        remember = "yes" if remember_me.value else "no"
         match response[0]:
             case "no":
-                print("Incorrect")
+                error.value = "Incorrect login details"
+                page.update()
             case "yes":
                 user = user_field.value
                 password = pass_field.value
                     
                 user_ex = {
-                    "uid": response[1],
-                    "username": user
+                    "uid": int(response[1]),
+                    "username": user,
+                    "password": password,
+                    "remember": remember
                 }
                 json.dump(user_ex, open("profile.json", "w"), indent=4)
                 logged_in = True
                 page.pop_dialog()
                 page.pop_dialog()
-                show_users()
+                await show_users()
                 await msg_hist()
                 page.update()
 
+    def show_login():
+        page.show_dialog(login_dialog)
+
+    def show_create():
+        page.show_dialog(create_profile_dialog)
+
+    error = ft.Text(value="", color=ft.Colors.RED)
     login_dialog = ft.AlertDialog(
         modal=True,
         title="Welcome!",
@@ -178,11 +203,13 @@ async def main(page: ft.Page):
             controls=[
                 user_field,
                 pass_field,
-                ft.Text(value="")
+                remember_me,
+                error
             ]
         ),
         actions=[
-                ft.TextButton(content="Login", on_click=login)
+            ft.TextButton(content="Create Account", on_click=show_create),
+            ft.TextButton(content="Login", on_click=login)
             ]
     )
 
@@ -193,34 +220,19 @@ async def main(page: ft.Page):
             controls=[
                 user_field,
                 pass_field,
+                remember_me,
                 ft.FilledButton(content="Pick PFP", on_click=pick_file_kde)
             ],
             expand=False
         ),
         actions=[
+            ft.TextButton(content="Login", on_click=show_login),
             ft.TextButton(content="Save", on_click=create_profile)
         ]
     )
 
-    def show_login():
+    if json.load(open("profile.json", "r"))["uid"] == 0 or json.load(open("profile.json", "r"))["remember"] == "no":
         page.show_dialog(login_dialog)
-
-    def show_create():
-        page.show_dialog(create_profile_dialog)
-    
-    first_start = ft.AlertDialog(
-        modal=True,
-        title="Welcome!",
-        content=ft.Column(
-            controls=[
-                ft.FilledButton(content="Login", on_click=show_login),
-                ft.FilledButton(content="Create User", on_click=show_create)
-            ]
-        )
-    )
-
-    if json.load(open("profile.json", "r"))["uid"] == 0:
-        page.show_dialog(first_start)
     else:
         logged_in = True
 
@@ -228,12 +240,14 @@ async def main(page: ft.Page):
         if text_msg.value and text_msg.value.strip():
             msg = text_msg.value
             text_msg.value = ""
-            await add_message_to_display(f"You: {msg}", int(id), is_own=True)
-            page.update()  # Clear the text field immediately
-            db.write_message(id, msg)
             await text_msg.focus()
+            page.update()
+            timestamp = f"{datetime.now().hour-12 if datetime.now().hour > 12 else datetime.now().hour}:{datetime.now().minute} {"AM" if 0 < datetime.now().hour < 12 else "PM"}"
+            await add_message_to_display(f"You: {msg}", int(id), timestamp, is_own=True)
+            page.update()
+            db.write_message(id, msg)
 
-    async def add_message_to_display(message, uid, is_own=False):
+    async def add_message_to_display(message, uid, timestamp, is_own=False):
         users = await db.get_all_users_json(db.conn)
         for user in users.values():
             if user["id"] == uid:
@@ -243,28 +257,34 @@ async def main(page: ft.Page):
                     pfp = base64.b64decode(user["pfp"])
                     open(f"pfps/{uid}.png", "wb").write(pfp)
 
-        size = 40
+        image_size = 40
+        max_width = (page.width-400)/2
+        estimated_text_width = len(message) * 10
         message_bubble = ft.Container(
-            content=ft.Text(message, color=ft.Colors.WHITE, overflow=ft.TextOverflow.CLIP),
-            bgcolor=ft.Colors.BLUE_400 if is_own else ft.Colors.GREEN_400,
+            content=ft.Column(controls=[
+                ft.Text(message, color=ft.Colors.WHITE, overflow=ft.TextOverflow.CLIP),
+                ft.Text(timestamp, color=ft.Colors.GREY_300, align=ft.Alignment.CENTER_RIGHT)
+            ],
+            alignment=ft.Alignment.CENTER),
+            bgcolor=ft.Colors.BLUE_GREY_900 if is_own else ft.Colors.GREY_900,
             border_radius=10,
             padding=10,
-            margin=ft.Margin.only(bottom=5, right=20, left=20)
+            margin=ft.Margin.only(right=20, left=20),
+            width=min(max_width, estimated_text_width),
+            expand_loose=False
         )
         
-        # Wrap in a Row to control positioning
         message_row = ft.Row(
             controls=[
-                ft.Image(src=pfp, width=size, height=size, border_radius=size/2),
+                ft.Image(src=pfp, width=image_size, height=image_size, border_radius=image_size/2),
                 message_bubble
                 ] if not is_own else [
                 message_bubble,
-                ft.Image(src=pfp, width=size, height=size, border_radius=size/2)
+                ft.Image(src=pfp, width=image_size, height=image_size, border_radius=image_size/2)
                 ],
                 spacing=1,
-            alignment=ft.MainAxisAlignment.END if is_own else ft.MainAxisAlignment.START,
-        )
-        
+                alignment=ft.MainAxisAlignment.END if is_own else ft.MainAxisAlignment.START
+            )
         message_display.controls.append(message_row)
 
     text_msg = ft.TextField(
@@ -289,7 +309,6 @@ async def main(page: ft.Page):
         expand=True,
     )
     
-    # Main message area with messages on top, input at bottom
     message_content = ft.Container(
         content=ft.Column(
             controls=[
@@ -299,15 +318,15 @@ async def main(page: ft.Page):
             spacing=10,
             expand=True,
         ),
-        bgcolor=ft.Colors.GREY_800,
+        bgcolor=ft.Colors.BLACK_26,
         expand=True,
         padding=10,
     )
 
     main_content = ft.Row(
         controls=[
-            ft.Container(content=friends , bgcolor=ft.Colors.GREY_900, width=400, border_radius=5),
-            ft.Container(content=message_content, bgcolor=ft.Colors.GREY_800, expand=True, border_radius=5)
+            ft.Container(content=friends, bgcolor=ft.Colors.BLACK_12, width=400, border_radius=5),
+            ft.Container(content=message_content, expand=True, border_radius=5)
             ],
             expand=True
         )
@@ -317,11 +336,18 @@ async def main(page: ft.Page):
     async def msg_hist():
         msg_count = await db.msgCount(db.conn)
         msg = await db.getMsg(db.conn, msg_count if msg_count <= 30 else 30)
+        
         for item in reversed(msg):
-            message = f"{item["username"]}: {item["content"]}"
-            await add_message_to_display(message, int(item["id"]), is_own=True if item["username"] == json.load(open("profile.json"))["username"] else False)
+            message = f"{item['username']}: {item['content']}"
+            is_me = item["id"] == json.load(open("profile.json"))["uid"]
+            timestamp = item['created_at'].split("T")[1].split(".")[0].split(":")
+            timestamp[0], timestamp[1] = int(timestamp[0]), int(timestamp[1])
+            ts = f"{timestamp[0]-12 if timestamp[0] > 12 else timestamp[0]}:{timestamp[0]} {"AM" if 0 < timestamp[0] < 12 else "PM"}"
+            await add_message_to_display(message, int(item["id"]), ts, is_own=is_me)
             page.update()
-            await db.lowerFlag(db.conn, json.load(open("profile.json", "r"))["uid"])
+        
+        uid = json.load(open("profile.json", "r"))["uid"]
+        await db.lowerFlag(db.conn, uid)
 
     if logged_in:
         await msg_hist()
@@ -332,9 +358,12 @@ async def main(page: ft.Page):
             msg = await db.getMsg(db.conn, unread_count)
             for item in reversed(msg):
                 message = f"{item["username"]}: {item["content"]}"
-                await add_message_to_display(message, int(item["id"]), is_own=False)
-                page.update()
+                if item["id"] != json.load(open("profile.json"))["uid"]:
+                    timestamp = item['created_at'].split("T")[1].split(".")[0].split(":")
+                    timestamp[0], timestamp[1] = int(timestamp[0]), int(timestamp[1])
+                    ts = f"{timestamp[0]-12 if timestamp[0] > 12 else timestamp[0]}:{timestamp[0]} {"AM" if 0 < timestamp[0] < 12 else "PM"}"
+                    await add_message_to_display(message, int(item["id"]), ts, is_own=False)
                 await db.lowerFlag(db.conn, json.load(open("profile.json", "r"))["uid"])
+                page.update()
 
-# Run the app
 ft.run(main)

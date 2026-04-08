@@ -85,10 +85,11 @@ class dbAccess():
     async def lowerFlag(self, conn_string, my_user_id):
         async with await psycopg.AsyncConnection.connect(conn_string, autocommit=True) as conn:
             await conn.execute(
-                "UPDATE user_notifications SET unread_count = 0 WHERE user_id = %s", 
+                "UPDATE user_notifications SET last_read_at = CURRENT_TIMESTAMP WHERE user_id = %s", 
                 (my_user_id,)
             )
             return True
+
 
     async def getMsg(self, conn_string, amount: int):
         async with await psycopg.AsyncConnection.connect(conn_string, row_factory=dict_row) as conn:
