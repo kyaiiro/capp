@@ -1,6 +1,7 @@
 import flet as ft, asyncio, json, base64, pathlib, subprocess
 from datetime import datetime
 from dbStuff import dbAccess
+from PIL import ImageFont
 
 def get_db(active_db):
     with open("server.json", "r") as file:
@@ -27,6 +28,7 @@ async def main(page: ft.Page):
     page.title = "Chat app"
     page.expand = True
     page.theme_mode = ft.ThemeMode.DARK
+    page.theme = ft.Theme(font_family="assets/DejaVuSans.ttf")
 
     logged_in = False
 
@@ -145,7 +147,7 @@ async def main(page: ft.Page):
             print("Username is required")
             return
             
-        with open(pfp if pfp != "No file selected" else "temp.png", "rb") as img_file:
+        with open(pfp if pfp != "No file selected" else "assets/temp.png", "rb") as img_file:
             b64_string = base64.b64encode(img_file.read()).decode('utf-8')
         uid = await db.create_new_user(user, password, b64_string)
         
@@ -236,16 +238,23 @@ async def main(page: ft.Page):
     else:
         logged_in = True
 
-    async def sendMessage(e, id):
-        if text_msg.value and text_msg.value.strip():
-            msg = text_msg.value
+    async def sendMessage(e, id, file=None, file_name=None):
+        if text_msg.value and text_msg.value.strip() or file != None:
+            if not file:
+                msg = text_msg.value
+            else:
+                attachment = file
+                msg = file_name
             text_msg.value = ""
             await text_msg.focus()
             page.update()
             timestamp = f"{datetime.now().hour-12 if datetime.now().hour > 12 else datetime.now().hour}:{datetime.now().minute} {"AM" if 0 < datetime.now().hour < 12 else "PM"}"
-            await add_message_to_display(f"You: {msg}", int(id), timestamp, is_own=True)
+            await add_message_to_display(f"You: {msg}", int(id), timestamp, is_own=True) #TODO Add image displaying...
             page.update()
-            db.write_message(id, msg)
+            if file and file_name:
+                db.write_message(id, msg, attachment, file_name)
+            else:
+                db.write_message(id, msg)
 
     async def add_message_to_display(message, uid, timestamp, is_own=False):
         users = await db.get_all_users_json(db.conn)
@@ -258,21 +267,27 @@ async def main(page: ft.Page):
                     open(f"pfps/{uid}.png", "wb").write(pfp)
 
         image_size = 40
-        max_width = (page.width-400)/2
+        max_width = (page.width-400)*0.7
+
+        FONT = ImageFont.truetype("assets/DejaVuSans.ttf", 14)
+        def measure_text_width(text: str) -> float:
+            bbox = FONT.getbbox(text)
+            return bbox[2] - bbox[0]
+
+        #FIXME short messages (like yo) are too small, set a min size
         message = message.rstrip()
-        estimated_text_width = (len(message)+len(timestamp)) * 6
+        estimated_text_width = measure_text_width(message) + 20
         message_bubble = ft.Container(
             content=ft.Column(controls=[
-                ft.Text(message, color=ft.Colors.WHITE, overflow=ft.TextOverflow.CLIP),
+                ft.Text(message, color=ft.Colors.WHITE),
                 ft.Text(timestamp, color=ft.Colors.GREY_300, align=ft.Alignment.CENTER_RIGHT)
             ],
-            horizontal_alignment=ft.CrossAxisAlignment.END),
+            horizontal_alignment=ft.CrossAxisAlignment.END, spacing=2),
             bgcolor=ft.Colors.BLUE_GREY_900 if is_own else ft.Colors.GREY_900,
             border_radius=10,
             padding=10,
             margin=ft.Margin.only(right=20, left=20),
-            width=min(max_width, estimated_text_width),
-            expand_loose=False
+            width=min(max_width, estimated_text_width)
         )
         
         message_row = ft.Row(
@@ -288,6 +303,21 @@ async def main(page: ft.Page):
             )
         message_display.controls.append(message_row)
 
+    async def upload_image(e, uid):
+        result = subprocess.run(
+                    ["kdialog", "--getopenfilename", "/home", "All Files (*)"],
+                    capture_output=True, text=True
+                )
+        file_path = result.stdout.strip()
+        split = file_path.split("/")
+        file_name = split[len(split)-1]
+        file = open(file_path, "rb").read()
+        asyncio.create_task(sendMessage(e, uid, file, file_name))
+
+    file_uploader = ft.IconButton(
+        icon=ft.Icons.UPLOAD,
+        on_click=lambda e: asyncio.create_task(upload_image(e, json.load(open("profile.json", "r"))["uid"]))
+    )
     text_msg = ft.TextField(
         hint_text="Type a message...",
         border=ft.InputBorder.OUTLINE,
@@ -300,7 +330,7 @@ async def main(page: ft.Page):
         on_click=lambda e: asyncio.create_task(sendMessage(e, json.load(open("profile.json", "r"))["uid"]))
     )
     input_row = ft.Row(
-        controls=[text_msg, send_button],
+        controls=[file_uploader, text_msg, send_button],
         spacing=10
     )
     message_display = ft.Column(

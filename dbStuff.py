@@ -7,12 +7,16 @@ class dbAccess():
         self.dbip = DB_IP
         self.conn = f"dbname=capp user=postgres password={self.dbpass} host={self.dbip}"
 
-    def write_message(self, user_id, message):
+    def write_message(self, user_id, message=None, file=None, file_name=None):
+        if file == b"" or file == "" or file == None:
+            file = None
+        else:
+            message=file_name
         with psycopg.connect(self.conn, autocommit=True) as conn:
             with conn.cursor() as cur:
                 cur.execute(
-                    "INSERT INTO messages (user_id, content) VALUES (%s, %s)",
-                    (user_id, message)
+                    "INSERT INTO messages (user_id, content, attachment) VALUES (%s, %s, %s)",
+                    (user_id, message, file)
                 )
 
     async def create_new_user(self, username, password, pfp):
@@ -96,7 +100,7 @@ class dbAccess():
             async with conn.cursor() as cur:
                 # We join with users to get the name, and sort by ID/Time descending
                 await cur.execute("""
-                    SELECT u.username, m.content, m.created_at, u.id
+                    SELECT u.username, m.content, m.created_at, u.id, m.attachment
                     FROM messages m
                     JOIN users u ON m.user_id = u.id
                     ORDER BY m.id DESC 
