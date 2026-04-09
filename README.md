@@ -7,7 +7,7 @@ sh setup
 ```
 
 ```
-#TODO Image sharing
+#TODO Image sharing // busy
 #TODO Validation of password on startup
 #TODO End to End encryption
 #TODO Load more when scrolling up

@@ -398,5 +398,3 @@ async def main(page: ft.Page):
                 page.update()
 
 ft.run(main)
-
-#TODO Image sending (kdialog --getopenfilename /home "image/png image/jpeg image/webp")
