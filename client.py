@@ -259,13 +259,14 @@ async def main(page: ft.Page):
 
         image_size = 40
         max_width = (page.width-400)/2
-        estimated_text_width = len(message) * 10
+        message = message.rstrip()
+        estimated_text_width = (len(message)+len(timestamp)) * 6
         message_bubble = ft.Container(
             content=ft.Column(controls=[
                 ft.Text(message, color=ft.Colors.WHITE, overflow=ft.TextOverflow.CLIP),
                 ft.Text(timestamp, color=ft.Colors.GREY_300, align=ft.Alignment.CENTER_RIGHT)
             ],
-            alignment=ft.Alignment.CENTER),
+            horizontal_alignment=ft.CrossAxisAlignment.END),
             bgcolor=ft.Colors.BLUE_GREY_900 if is_own else ft.Colors.GREY_900,
             border_radius=10,
             padding=10,
@@ -367,3 +368,5 @@ async def main(page: ft.Page):
                 page.update()
 
 ft.run(main)
+
+#TODO Image sending (kdialog --getopenfilename /home "image/png image/jpeg image/webp")
