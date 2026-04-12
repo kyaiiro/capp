@@ -192,9 +192,15 @@ async def main(page: ft.Page):
                 page.update()
 
     def show_login():
+        page.pop_dialog()
+        user_field.value = ""
+        pass_field.value = ""
         page.show_dialog(login_dialog)
 
     def show_create():
+        page.pop_dialog()
+        user_field.value = ""
+        pass_field.value = ""
         page.show_dialog(create_profile_dialog)
 
     error = ft.Text(value="", color=ft.Colors.RED)
@@ -280,7 +286,7 @@ async def main(page: ft.Page):
         message_bubble = ft.Container(
             content=ft.Column(controls=[
                 ft.Text(message, color=ft.Colors.WHITE),
-                ft.Text(timestamp, color=ft.Colors.GREY_300, align=ft.Alignment.CENTER_RIGHT)
+                ft.Text(timestamp, color=ft.Colors.GREY_500, align=ft.Alignment.CENTER_RIGHT, size=10)
             ],
             horizontal_alignment=ft.CrossAxisAlignment.END, spacing=2),
             bgcolor=ft.Colors.BLUE_GREY_900 if is_own else ft.Colors.GREY_900,

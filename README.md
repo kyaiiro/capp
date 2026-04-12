@@ -7,6 +7,8 @@ sh setup
 ```
 
 ```
+#FIXME Can't see eachother's messages
+#FIXME Login with non existant user breaks
 #TODO Image sharing // busy
 #TODO Validation of password on startup
 #TODO End to End encryption
