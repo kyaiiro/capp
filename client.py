@@ -256,13 +256,13 @@ async def main(page: ft.Page):
             text_msg.value = ""
             await text_msg.focus()
             page.update()
-            timestamp = f"{datetime.now().hour-12 if datetime.now().hour > 12 else datetime.now().hour}:{datetime.now().minute} {"AM" if 0 < datetime.now().hour < 12 else "PM"}"
+            timestamp = f"{datetime.now().hour}:{datetime.now().minute} {"AM" if 0 < datetime.now().hour < 12 else "PM"}"
             await add_message_to_display(f"You: {msg}", int(id), timestamp, is_own=True) #TODO Add image displaying...
             page.update()
             if file and file_name:
-                db.write_message(id, msg, attachment, file_name)
+                await db.write_message(id, msg, attachment, file_name)
             else:
-                db.write_message(id, msg)
+                await db.write_message(id, msg)
 
     async def add_message_to_display(message, uid, timestamp, is_own=False):
         users = await db.get_all_users_json(db.conn)

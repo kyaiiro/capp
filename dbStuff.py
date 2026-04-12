@@ -7,7 +7,7 @@ class dbAccess():
         self.dbip = DB_IP
         self.conn = f"dbname=capp user=postgres password={self.dbpass} host={self.dbip}"
 
-    def write_message(self, user_id, message=None, file=None, file_name=None):
+    async def write_message(self, user_id, message=None, file=None, file_name=None):
         if file == b"" or file == "" or file == None:
             file = None
         else:
@@ -96,8 +96,8 @@ class dbAccess():
 
 
     async def getMsg(self, conn_string, amount: int):
-        async with await psycopg.AsyncConnection.connect(conn_string, row_factory=dict_row) as conn:
-            async with conn.cursor() as cur:
+        async with await psycopg.AsyncConnection.connect(conn_string) as conn:
+            async with conn.cursor(row_factory=dict_row) as cur:
                 # We join with users to get the name, and sort by ID/Time descending
                 await cur.execute("""
                     SELECT u.username, m.content, m.created_at, u.id, m.attachment
