@@ -1,6 +1,7 @@
-import flet as ft, asyncio, io, json, base64, pathlib, subprocess
+import flet as ft, asyncio, io, json, base64, pathlib, subprocess, os
 from datetime import datetime
 from dbStuff import dbAccess
+from random import randint
 from PIL import ImageFont, Image
 
 def get_db(active_db):
@@ -24,6 +25,9 @@ if not pathlib.Path("pfps").is_dir():
 else:
     subprocess.getoutput("rm pfps/*")
 
+if not pathlib.Path("tmp").is_dir():
+    subprocess.getoutput("mkdir tmp")
+
 async def main(page: ft.Page):
     page.title = "Chat app"
     page.expand = True
@@ -45,13 +49,18 @@ async def main(page: ft.Page):
     async def save_settings(e):
         uid = json.load(open("profile.json", "r"))["uid"]
         username, pfp = user.value, pfp_path.value
-        with open(pfp, "rb") as img_file:
-            b64_string = base64.b64encode(img_file.read()).decode('utf-8')
+        b64_string = base64.b64encode(open(pfp, "rb").read()).decode('utf-8')
         await db.updProfile(db.conn, uid, username, b64_string)
         subprocess.getoutput(f"rm pfps/{uid}.png")
         page.pop_dialog()
         await show_users()
         page.update()
+    
+    def clear_cache(e):
+        for file in os.listdir("tmp"):
+            os.remove(f"tmp/{file}")
+        for file in os.listdir("pfps"):
+            os.remove(f"pfps/{file}")
 
     def logout(e):
         page.pop_dialog()
@@ -85,7 +94,10 @@ async def main(page: ft.Page):
                     ft.IconButton(icon=ft.Icons.LOGOUT, on_click=logout)
                 ]
             ),
-            actions=ft.TextButton(content="Save", on_click=save_settings)
+            actions=ft.Row(controls=[
+                ft.TextButton(content="Celar Cache", on_click=clear_cache),
+                ft.TextButton(content="Save", on_click=save_settings)
+                ])
 
         )
         page.show_dialog(settings)
@@ -246,25 +258,36 @@ async def main(page: ft.Page):
     else:
         logged_in = True
 
-    async def sendMessage(e, id, file=None, file_name=None):
-        if text_msg.value and text_msg.value.strip() or file != None:
-            if not file:
-                msg = text_msg.value
-            else:
-                attachment = file
-                msg = file_name
+    async def sendMessage(e, id):
+        if text_msg.value and text_msg.value.strip():
+            msg = text_msg.value
+
+            if att := attachment_preview.src:
+                split = att.split("/")
+                ext = split[len(split)-1].split(".")[1]
+                file_name = f"{datetime.now().hour}:{datetime.now().minute}.{randint(1,100)}.{ext}"
+                file = open(att, "rb").read()
+
             text_msg.value = ""
+            attachment_preview.src = ""
+
             await text_msg.focus()
             page.update()
             timestamp = f"{datetime.now().hour}:{datetime.now().minute} {"AM" if 0 < datetime.now().hour < 12 else "PM"}"
-            await add_message_to_display(f"You: {msg}", int(id), timestamp, is_own=True) #TODO Add image displaying...
+            await add_message_to_display(f"You: {msg}", file if att else None, file_name if att else None, int(id), timestamp, is_own=True)
             page.update()
-            if file and file_name:
-                await db.write_message(id, msg, attachment, file_name)
+            if att:
+                await db.write_message(id, msg, file, file_name)
             else:
                 await db.write_message(id, msg)
 
-    async def add_message_to_display(message, uid, timestamp, is_own=False):
+    def max_image(file):
+        image_dialog = ft.AlertDialog(
+            content=ft.Image(src=file),
+            )
+        page.show_dialog(image_dialog)
+
+    async def add_message_to_display(message, attachment, name, uid, timestamp, is_own=False):
         users = await db.get_all_users_json(db.conn)
         for user in users.values():
             if user["id"] == uid:
@@ -274,29 +297,43 @@ async def main(page: ft.Page):
                     pfp = base64.b64decode(user["pfp"])
                     open(f"pfps/{uid}.png", "wb").write(pfp)
 
-        image_size = 40
-        max_width = (page.width-400)*0.7
-
         FONT = ImageFont.truetype("assets/DejaVuSans.ttf", 14)
         def measure_text_width(text: str) -> float:
             bbox = FONT.getbbox(text)
             return bbox[2] - bbox[0]
-
-        #FIXME short messages (like yo) are too small, set a min size
+        
         message = message.rstrip()
+        image_size = 40
+        max_width = (page.width-400)*0.7
+        split = message.split(":")
+        msg = ""
+        for j in range(1, len(split)):
+            msg = f"{msg} {split[j]}"
+        min_width = measure_text_width(msg) + 20
+
         estimated_text_width = measure_text_width(message) + 20
         message_bubble = ft.Container(
-            content=ft.Column(controls=[
-                ft.Text(message, color=ft.Colors.WHITE),
-                ft.Text(timestamp, color=ft.Colors.GREY_500, align=ft.Alignment.CENTER_RIGHT, size=10)
-            ],
+            content=ft.Column(controls=[],
             horizontal_alignment=ft.CrossAxisAlignment.END, spacing=2),
             bgcolor=ft.Colors.BLUE_GREY_900 if is_own else ft.Colors.GREY_900,
             border_radius=10,
             padding=10,
             margin=ft.Margin.only(right=20, left=20),
-            width=min(max_width, estimated_text_width)
+            width=min(max_width, max(min_width, estimated_text_width))
         )
+
+        message_bubble.content.controls.append(ft.Text(message, color=ft.Colors.WHITE))
+        if attachment:
+            try:
+                open(f"tmp/{name}", "wb").write(attachment)
+            except:
+                subprocess.run(["cp", str(attachment), f"tmp/{name}"])
+            message_bubble.content.controls.append(ft.Container(
+                content=ft.Image(src=f"tmp/{name}", align=ft.Alignment.CENTER_LEFT),
+                on_click=lambda e, file=f"tmp/{name}": max_image(file)
+            ))
+            message_bubble.width = 350
+        message_bubble.content.controls.append(ft.Text(timestamp, color=ft.Colors.GREY_500, align=ft.Alignment.CENTER_RIGHT, size=10))
         
         message_row = ft.Row(
             controls=[
@@ -317,11 +354,8 @@ async def main(page: ft.Page):
                     capture_output=True, text=True
                 )
         file_path = result.stdout.strip()
-        split = file_path.split("/")
-        file_name = split[len(split)-1]
-        file = open(file_path, "rb").read()
-        asyncio.create_task(sendMessage(e, uid, file, file_name))
-
+        attachment_preview.src = file_path
+        
     file_uploader = ft.IconButton(
         icon=ft.Icons.UPLOAD,
         on_click=lambda e: asyncio.create_task(upload_image(e, json.load(open("profile.json", "r"))["uid"]))
@@ -337,10 +371,14 @@ async def main(page: ft.Page):
         icon_color=ft.Colors.BLUE_400,
         on_click=lambda e: asyncio.create_task(sendMessage(e, json.load(open("profile.json", "r"))["uid"]))
     )
-    input_row = ft.Row(
-        controls=[file_uploader, text_msg, send_button],
-        spacing=10
-    )
+    attachment_preview = ft.Image(src="", width=50, height=50)
+    input_row = ft.Column(controls=[
+        attachment_preview,
+        ft.Row(
+            controls=[file_uploader, text_msg, send_button],
+            spacing=10
+        )
+    ])
     message_display = ft.Column(
         controls=[],
         scroll=ft.ScrollMode.AUTO,
@@ -378,11 +416,13 @@ async def main(page: ft.Page):
         
         for item in reversed(msg):
             message = f"{item['username']}: {item['content']}"
+            attachment = item["attachment"]
+            name = item["attachment_name"]
             is_me = item["id"] == json.load(open("profile.json"))["uid"]
             timestamp = item['created_at'].split("T")[1].split(".")[0].split(":")
             timestamp[0], timestamp[1] = int(timestamp[0]), int(timestamp[1])
             ts = f"{timestamp[0]-12 if timestamp[0] > 12 else timestamp[0]}:{timestamp[0]} {"AM" if 0 < timestamp[0] < 12 else "PM"}"
-            await add_message_to_display(message, int(item["id"]), ts, is_own=is_me)
+            await add_message_to_display(message, attachment, name, int(item["id"]), ts, is_own=is_me)
             page.update()
         
         uid = json.load(open("profile.json", "r"))["uid"]
@@ -397,11 +437,13 @@ async def main(page: ft.Page):
             msg = await db.getMsg(db.conn, unread_count)
             for item in reversed(msg):
                 message = f"{item["username"]}: {item["content"]}"
+                attachment = item["attachment"]
+                name = item["attachment_name"]
                 if item["id"] != json.load(open("profile.json"))["uid"]:
                     timestamp = item['created_at'].split("T")[1].split(".")[0].split(":")
                     timestamp[0], timestamp[1] = int(timestamp[0]), int(timestamp[1])
                     ts = f"{timestamp[0]-12 if timestamp[0] > 12 else timestamp[0]}:{timestamp[0]} {"AM" if 0 < timestamp[0] < 12 else "PM"}"
-                    await add_message_to_display(message, int(item["id"]), ts, is_own=False)
+                    await add_message_to_display(message, attachment, name, int(item["id"]), ts, is_own=False)
                 await db.lowerFlag(db.conn, json.load(open("profile.json", "r"))["uid"])
                 page.update()
 
