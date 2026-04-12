@@ -95,7 +95,7 @@ async def main(page: ft.Page):
                 ]
             ),
             actions=ft.Row(controls=[
-                ft.TextButton(content="Celar Cache", on_click=clear_cache),
+                ft.TextButton(content="Clear Cache", on_click=clear_cache),
                 ft.TextButton(content="Save", on_click=save_settings)
                 ])
 
@@ -297,8 +297,8 @@ async def main(page: ft.Page):
                     pfp = base64.b64decode(user["pfp"])
                     open(f"pfps/{uid}.png", "wb").write(pfp)
 
-        FONT = ImageFont.truetype("assets/DejaVuSans.ttf", 14)
-        def measure_text_width(text: str) -> float:
+        def measure_text_width(text: str, size) -> float:
+            FONT = ImageFont.truetype("assets/DejaVuSans.ttf", size)
             bbox = FONT.getbbox(text)
             return bbox[2] - bbox[0]
         
@@ -309,9 +309,10 @@ async def main(page: ft.Page):
         msg = ""
         for j in range(1, len(split)):
             msg = f"{msg} {split[j]}"
-        min_width = measure_text_width(msg) + 20
+        min_width = measure_text_width(msg, 14) + 20
+        timestamp_width = measure_text_width(timestamp, 10)
 
-        estimated_text_width = measure_text_width(message) + 20
+        estimated_text_width = measure_text_width(message, 14) + 20
         message_bubble = ft.Container(
             content=ft.Column(controls=[],
             horizontal_alignment=ft.CrossAxisAlignment.END, spacing=2),
@@ -319,10 +320,9 @@ async def main(page: ft.Page):
             border_radius=10,
             padding=10,
             margin=ft.Margin.only(right=20, left=20),
-            width=min(max_width, max(min_width, estimated_text_width))
+            width=min(max_width, max(timestamp_width, min_width, estimated_text_width))
         )
 
-        message_bubble.content.controls.append(ft.Text(message, color=ft.Colors.WHITE))
         if attachment:
             try:
                 open(f"tmp/{name}", "wb").write(attachment)
@@ -330,9 +330,11 @@ async def main(page: ft.Page):
                 subprocess.run(["cp", str(attachment), f"tmp/{name}"])
             message_bubble.content.controls.append(ft.Container(
                 content=ft.Image(src=f"tmp/{name}", align=ft.Alignment.CENTER_LEFT),
-                on_click=lambda e, file=f"tmp/{name}": max_image(file)
+                on_click=lambda e, file=f"tmp/{name}": max_image(file),
+                margin=ft.Margin.only(bottom=20)
             ))
             message_bubble.width = 350
+        message_bubble.content.controls.append(ft.Text(message, color=ft.Colors.WHITE, align=ft.Alignment.CENTER_LEFT))
         message_bubble.content.controls.append(ft.Text(timestamp, color=ft.Colors.GREY_500, align=ft.Alignment.CENTER_RIGHT, size=10))
         
         message_row = ft.Row(
