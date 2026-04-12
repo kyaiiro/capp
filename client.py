@@ -1,7 +1,7 @@
-import flet as ft, asyncio, json, base64, pathlib, subprocess
+import flet as ft, asyncio, io, json, base64, pathlib, subprocess
 from datetime import datetime
 from dbStuff import dbAccess
-from PIL import ImageFont
+from PIL import ImageFont, Image
 
 def get_db(active_db):
     with open("server.json", "r") as file:
@@ -122,10 +122,12 @@ async def main(page: ft.Page):
     def pick_file_kde(e):
         try:
             result = subprocess.run(
-                ["kdialog", "--getopenfilename", "/home", "All Files (*)"],
+                ["kdialog", "--getopenfilename", "/home", "image/png image/webp image/jpeg"],
                 capture_output=True, text=True
             )
             file_path = result.stdout.strip()
+
+            print(Image.open(io.BytesIO(open(file_path, "rb").read())).verify) #FIXME Fix ts ig bro
             
             if file_path:
                 pfp_path.value = file_path
